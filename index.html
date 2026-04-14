@@ -50,7 +50,7 @@
 			async function init() {
 
 				camera = new THREE.PerspectiveCamera( 25, window.innerWidth / window.innerHeight, 0.1, 100 );
-				camera.position.set( 3, 5, 8 );
+				camera.position.set( 3, 4, 5 );
 				camera.userData.phi = 0.0;
 
 				scene = new THREE.Scene();
@@ -95,13 +95,13 @@
 				const attractorsRotationAxes = uniformArray( [
 					new THREE.Vector3( 0.2, 1, 0 ),
 					new THREE.Vector3( 0, 1, - 0.2 ),
-					new THREE.Vector3( 1, 0, - 0.5 ).normalize()
+					new THREE.Vector3( 0.6, 0, - 0.75 ).normalize()
 				] );
 				const attractorsLength = uniform( attractorsPositions.array.length, 'uint' );
 				const attractors = [];
 				const helpersRingGeometry = new THREE.RingGeometry( 1, 1.02, 32, 1, 0, Math.PI * 1.5 );
-				const helpersArrowGeometry = new THREE.ConeGeometry( 0.1, 0.4, 12, 1, false );
-				const helpersMaterial = new THREE.MeshBasicMaterial( { side: THREE.DoubleSide, transparent: true } );
+				const helpersArrowGeometry = new THREE.ConeGeometry( 0.05, 0.2, 6, 1, false );
+				const helpersMaterial = new THREE.MeshBasicMaterial( { side: THREE.DoubleSide, transparent: true, opacity: 0.2 } );
 
 				for ( let i = 0; i < attractorsPositions.array.length; i ++ ) {
 
@@ -391,7 +391,7 @@
 			}
 
 			setInterval(()=>{
-				const phiOffset = 0.01;
+				const phiOffset = 0.001;
 				// const stats = {x: 3, y: 5, z: 8, phi: 0};
 				let stats = calcPosition( camera.userData.phi + phiOffset );
 				moveCamera( {x: stats.x, y: stats.y, z: stats.z}, stats.phi );
