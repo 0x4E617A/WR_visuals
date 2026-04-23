@@ -301,6 +301,14 @@
 
 					position.assign(position.mix(correctedPos, inside));	// may scale inside with softness factor
 
+					// never rotate cuboid
+					const normal = vec3( isX, isY, isZ ).mul( s );
+					const vDotN = velocity.dot( normal );
+					// remove if velocity inward
+					const inward = vDotN.lessThan( 0 );
+					const correctedVel = velocity.sub( normal.mul( vDotN ) );
+					velocity.assign( velocity.mix( correctedVel, inside.and( inward ) ) );
+
 				} );
 				updateCompute = update().compute( count ).setName( 'Update Particles' );
 
