@@ -49,6 +49,8 @@
 
 			async function init() {
 
+				/* TODO:	- set up 3-4 cameras to map room
+							- set up debug cam */
 				camera = new THREE.PerspectiveCamera( 25, window.innerWidth / window.innerHeight, 0.1, 100 );
 				camera.position.set( 3, 4, 5 );
 				camera.userData.phi = 0.0;
@@ -293,15 +295,16 @@
 					// correct position
 					const s = position.sign();
 
-					const correctedPos = vec3(
-					  position.x.mix(innerHalfExtent.x.mul(s.x), isX),
-					  position.y.mix(innerHalfExtent.y.mul(s.y), isY),
-					  position.z.mix(innerHalfExtent.z.mul(s.z), isZ)
+					const pushOut = vec3(
+					  isX.mul(s.x).mul(faceDelta.x),
+					  isY.mul(s.y).mul(faceDelta.y),
+					  isZ.mul(s.z).mul(faceDelta.z)
 					);
 
-					position.assign(position.mix(correctedPos, inside));	// may scale inside with softness factor
+					// only move the particle *just enough* to leave the box
+					position.addAssign(pushOut.mul(inside));
 
-					// never rotate cuboid
+					// never rotate cuboid, or animals die
 					const normal = vec3( isX, isY, isZ ).mul( s );
 					const vDotN = velocity.dot( normal );
 					// remove if velocity inward
