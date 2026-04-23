@@ -167,6 +167,7 @@
 				const velocityDamping = uniform( 0.1 );
 				const scale = uniform( 0.008 );
 				const boundHalfExtent = uniform( 8 );
+				const innerHalfExtent = uniform( new THREE.Vector3( 1, .5, .5 ) );	// "room"-size
 				const colorA = uniform( color( '#5900ff' ) );
 				const colorB = uniform( color( '#ffa575' ) );
 
@@ -267,10 +268,38 @@
 
 					position.addAssign( velocity.mul( delta ) );
 
-					// box loop
+					// box loop - outer
 
 					const halfHalfExtent = boundHalfExtent.div( 2 ).toVar();
 					position.assign( mod( position.add( halfHalfExtent ), boundHalfExtent ).sub( halfHalfExtent ) );
+
+					// box loop - inner
+
+					const absPos = position.abs();
+
+					const insideMask = absPos.lessThan(innerHalfExtent);
+					const inside = insideMask.x.and(insideMask.y).and(insideMask.z);
+
+					const faceDelta = innerHalfExtent.sub(absPos); // distance to face
+
+					const minXY = faceDelta.x.min(faceDelta.y);
+					const minAxisVal = minXY.min(faceDelta.z);
+
+					// find closest axis to face
+					const isX = faceDelta.x.equal(minAxisVal);
+					const isY = faceDelta.y.equal(minAxisVal);
+					const isZ = faceDelta.z.equal(minAxisVal);
+
+					// correct position
+					const s = position.sign();
+
+					const correctedPos = vec3(
+					  position.x.mix(innerHalfExtent.x.mul(s.x), isX),
+					  position.y.mix(innerHalfExtent.y.mul(s.y), isY),
+					  position.z.mix(innerHalfExtent.z.mul(s.z), isZ)
+					);
+
+					position.assign(position.mix(correctedPos, inside));	// may scale inside with softness factor
 
 				} );
 				updateCompute = update().compute( count ).setName( 'Update Particles' );
