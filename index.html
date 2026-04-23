@@ -367,20 +367,6 @@
 
 			}
 
-			function calcPosition( phi ) {
-				if (phi >= 445.3 ) { phi = 0; }
-				let y = (5 + Math.sin( phi ) * 2 );
-				let z = (8 + Math.cos( phi ) * 10);
-				return {x: 3, y: y, z: z, phi: phi };
-			}
-
-			function moveCamera( coords, angle ) {
-				camera.position.set( coords.x, coords.y, coords.z);
-				camera.userData.phi = angle;
-
-				camera.updateProjectionMatrix();
-			}
-
 			async function animate() {
 
 				controls.update();
@@ -389,14 +375,6 @@
 				renderer.render( scene, camera );
 
 			}
-
-			setInterval(()=>{
-				const phiOffset = 0.001;
-				// const stats = {x: 3, y: 5, z: 8, phi: 0};
-				let stats = calcPosition( camera.userData.phi + phiOffset );
-				moveCamera( {x: stats.x, y: stats.y, z: stats.z}, stats.phi );
-			}, 50)
-
 
 		</script>
 	</body>
