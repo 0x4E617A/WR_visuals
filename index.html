@@ -10,17 +10,17 @@
 	</head>
 	<body>
 
-<!--		<div id="info">-->
+		<div id="info">
 <!--			<a href="https://threejs.org/" target="_blank" rel="noopener" class="logo-link"></a>-->
 
-<!--			<div class="title-wrapper">-->
-<!--				<a href="https://threejs.org/" target="_blank" rel="noopener">three.js</a><span>Attractors Particles</span>-->
-<!--			</div>-->
+			<div class="title-wrapper">
+				<span>Die Waldresidenz</span>
+			</div>
 
-<!--			<small>-->
-<!--				Compute Attractors Particles.-->
-<!--			</small>-->
-<!--		</div>-->
+			<small>
+				Mensch sein. Jeden Tag, jedes Wochenende.
+			</small>
+		</div>
 
 		<script type="importmap">
 			{
@@ -52,7 +52,7 @@
 				/* TODO:	- set up 3-4 cameras to map room
 							- set up debug cam */
 				camera = new THREE.PerspectiveCamera( 25, window.innerWidth / window.innerHeight, 0.1, 100 );
-				camera.position.set( 3, 4, 5 );
+				camera.position.set( 1.5, 1.5, 1.5 );
 				camera.userData.phi = 0.0;
 
 				scene = new THREE.Scene();
@@ -157,7 +157,7 @@
 
 				// particles
 
-				const count = Math.pow( 2, 15 );
+				const count = Math.pow( 2, 11 );
 				const material = new THREE.SpriteNodeMaterial( { blending: THREE.AdditiveBlending, depthWrite: false } );
 
 				const attractorMass = uniform( Number( `1e${7}` ) );
@@ -169,7 +169,7 @@
 				const velocityDamping = uniform( 0.1 );
 				const scale = uniform( 0.008 );
 				const boundHalfExtent = uniform( 8 );
-				const innerHalfExtent = uniform( new THREE.Vector3( 1, .5, .5 ) );	// "room"-size
+				const innerHalfExtent = uniform( new THREE.Vector3( 1, 1, 1 ) );	// "room"-size
 				const colorA = uniform( color( '#5900ff' ) );
 				const colorB = uniform( color( '#ffa575' ) );
 
@@ -295,14 +295,15 @@
 					// correct position
 					const s = position.sign();
 
-					const pushOut = vec3(
-					  isX.mul(s.x).mul(faceDelta.x),
-					  isY.mul(s.y).mul(faceDelta.y),
-					  isZ.mul(s.z).mul(faceDelta.z)
-					);
+                    const pushOut = vec3(
+                      isX.select(s.x.mul(faceDelta.x), 0.0),
+                      isY.select(s.y.mul(faceDelta.y), 0.0),
+                      isZ.select(s.z.mul(faceDelta.z), 0.0)
+                    );
 
-					// only move the particle *just enough* to leave the box
-					position.addAssign(pushOut.mul(inside));
+                    position.addAssign(
+                      inside.select(pushOut, vec3(0))
+                    );
 
 					// never rotate cuboid, or animals die
 					const normal = vec3( isX, isY, isZ ).mul( s );
