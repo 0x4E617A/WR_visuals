@@ -50,9 +50,10 @@
 			async function init() {
 
 				/* TODO:	- set up 3-4 cameras to map room
-							- set up debug cam */
+				            - group cams to room (inner boundary)
+				            - set up debug cam */
 				camera = new THREE.PerspectiveCamera( 25, window.innerWidth / window.innerHeight, 0.1, 100 );
-				camera.position.set( 1.5, 1.5, 1.5 );
+				camera.position.set( 3, 3, 4 );
 				camera.userData.phi = 0.0;
 
 				scene = new THREE.Scene();
@@ -164,12 +165,12 @@
 				const particleGlobalMass = uniform( Number( `1e${4}` ) );
 				const timeScale = uniform( 1 );
 				const spinningStrength = uniform( 2.75 );
-				const maxSpeed = uniform( 8 );
+				const maxSpeed = uniform( 2 );
 				const gravityConstant = 6.67e-11;
 				const velocityDamping = uniform( 0.1 );
 				const scale = uniform( 0.008 );
 				const boundHalfExtent = uniform( 8 );
-				const innerHalfExtent = uniform( new THREE.Vector3( 1, 1, 1 ) );	// "room"-size
+				const innerHalfExtent = uniform( new THREE.Vector3( .3, .3, .3 ) );	// "room"-size
 				const colorA = uniform( color( '#5900ff' ) );
 				const colorB = uniform( color( '#ffa575' ) );
 
@@ -275,43 +276,54 @@
 					const halfHalfExtent = boundHalfExtent.div( 2 ).toVar();
 					position.assign( mod( position.add( halfHalfExtent ), boundHalfExtent ).sub( halfHalfExtent ) );
 
-					// box loop - inner
+					// box loop - inner (forcefield hull)
 
-					const absPos = position.abs();
+                    const absPos = position.abs();
 
-					const insideMask = absPos.lessThan(innerHalfExtent);
-					const inside = insideMask.x.and(insideMask.y).and(insideMask.z);
+                    // particle inside forbidden cuboid?
+                    const insideMask = absPos.lessThan(innerHalfExtent);
+                    const inside = insideMask.x.and(insideMask.y).and(insideMask.z);
 
-					const faceDelta = innerHalfExtent.sub(absPos); // distance to face
+                    // penetration distance to each face
+                    const faceDelta = innerHalfExtent.sub(absPos);
 
-					const minXY = faceDelta.x.min(faceDelta.y);
-					const minAxisVal = minXY.min(faceDelta.z);
+                    // small epsilon for stability
+                    const eps = float(0.01);
 
-					// find closest axis to face
-					const isX = faceDelta.x.equal(minAxisVal);
-					const isY = faceDelta.y.equal(minAxisVal);
-					const isZ = faceDelta.z.equal(minAxisVal);
+                    // smooth blended outward normal
+                    const normal = vec3(
+                        faceDelta.x.add(eps).reciprocal(),
+                        faceDelta.y.add(eps).reciprocal(),
+                        faceDelta.z.add(eps).reciprocal()
+                    ).mul(position.sign()).normalize();
 
-					// correct position
-					const s = position.sign();
+                    // push amount = nearest face penetration
+                    const minXY = faceDelta.x.min(faceDelta.y);
+                    const penetration = minXY.min(faceDelta.z).add(0.002);
 
-                    const pushOut = vec3(
-                      isX.select(s.x.mul(faceDelta.x), 0.0),
-                      isY.select(s.y.mul(faceDelta.y), 0.0),
-                      isZ.select(s.z.mul(faceDelta.z), 0.0)
-                    );
+                    // convert bool -> float mask
+                    const insideF = inside.select(1.0, 0.0);
 
+                    // push particle out of hull
                     position.addAssign(
-                      inside.select(pushOut, vec3(0))
+                        normal.mul(penetration).mul(insideF)
                     );
 
-					// never rotate cuboid, or animals die
-					const normal = vec3( isX, isY, isZ ).mul( s );
-					const vDotN = velocity.dot( normal );
-					// remove if velocity inward
-					const inward = vDotN.lessThan( 0 );
-					const correctedVel = velocity.sub( normal.mul( vDotN ) );
-					velocity.assign( velocity.mix( correctedVel, inside.and( inward ) ) );
+                    // remove inward velocity only
+                    const vDotN = velocity.dot(normal);
+                    const inward = vDotN.lessThan(0.0);
+
+                    const correctedVelocity = velocity.sub(
+                        normal.mul(vDotN.mul(0.7))	// smooth: 0.7
+                    );
+
+                    // apply only when inside + moving inward
+                    velocity.assign(
+                        velocity.mix(
+                            correctedVelocity,
+                            inside.and(inward)
+                        )
+                    );
 
 				} );
 				updateCompute = update().compute( count ).setName( 'Update Particles' );
