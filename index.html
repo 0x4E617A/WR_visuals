@@ -134,6 +134,7 @@
 					attractor.controls.attach( attractor.reference );
 					attractor.controls.visible = true;
 					attractor.controls.enabled = attractor.controls.visible;
+
 					scene.add( attractor.controls.getHelper() );
 
 					attractor.controls.addEventListener( 'dragging-changed', ( event ) => {
@@ -149,18 +150,24 @@
 
 					} );
 
+					// reinit hidden controls for optics
+					attractor.controls.showX = false;
+					attractor.controls.showY = false;
+					attractor.controls.showZ = false;
+					attractor.helper.visible = false;
+
 					attractors.push( attractor );
 
 				}
 
 				// particles
 
-				const count = Math.pow( 2, 15 );
+				const count = Math.pow( 2, 17 );
 				const material = new THREE.SpriteNodeMaterial( { blending: THREE.AdditiveBlending, depthWrite: false } );
 
 				const attractorMass = uniform( Number( `1e${7}` ) );
 				const particleGlobalMass = uniform( Number( `1e${4}` ) );
-				const timeScale = uniform( 1 );
+				const timeScale = uniform( 1.2 );
 				const spinningStrength = uniform( 2.75 );
 				const maxSpeed = uniform( 8 );
 				const gravityConstant = 6.67e-11;
@@ -370,7 +377,7 @@
 			function calcPosition( phi ) {
 				if (phi >= 445.3 ) { phi = 0; }
 				let y = (5 + Math.sin( phi ) * 2 );
-				let z = (8 + Math.cos( phi ) * 10);
+				let z = (9 + Math.cos( phi ) * 10);
 				return {x: 3, y: y, z: z, phi: phi };
 			}
 
@@ -380,6 +387,10 @@
 
 				camera.updateProjectionMatrix();
 			}
+
+			// function moveAttractor( coords, angle ) {
+			// 	attractors[1].position = THREE.Vector3( coords );
+			// }
 
 			async function animate() {
 
@@ -391,7 +402,7 @@
 			}
 
 			setInterval(()=>{
-				const phiOffset = 0.001;
+				const phiOffset = 0.003;
 				// const stats = {x: 3, y: 5, z: 8, phi: 0};
 				let stats = calcPosition( camera.userData.phi + phiOffset );
 				moveCamera( {x: stats.x, y: stats.y, z: stats.z}, stats.phi );
