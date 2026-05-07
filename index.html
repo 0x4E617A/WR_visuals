@@ -43,30 +43,14 @@
 <script type="module">
     import * as THREE from 'three/webgpu';
     import {
-        float,
-        If,
-        PI,
-        color,
-        cos,
-        instanceIndex,
-        Loop,
-        mix,
-        mod,
-        sin,
-        instancedArray,
-        Fn,
-        uint,
-        uniform,
-        uniformArray,
-        hash,
-        vec3,
-        vec4
+        float, If, PI, color, cos, instanceIndex, Loop, mix, mod, sin, instancedArray, Fn,
+        uint, uniform, uniformArray, hash, vec3, vec4
     } from 'three/tsl';
     import {Inspector} from 'three/addons/inspector/Inspector.js';
     import {OrbitControls} from 'three/addons/controls/OrbitControls.js';
     import {TransformControls} from 'three/addons/controls/TransformControls.js';
 
-    const DISPLAY_MODE = 'single';
+    const DISPLAY_MODE = 'triple';
     let scene, renderer, controls, updateCompute, vehicleRig, frontCamera, leftCamera, rightCamera, debugCamera;
     let rendererFront, rendererLeft, rendererRight, winFront, winLeft, winRight;
     const hud = document.getElementById('hud');
@@ -126,13 +110,28 @@
     }
 
     async function createWindowRenderer(w) {
+        if (!w || w.closed) {
+            throw new Error('Popup window blocked by browser. Allow popups for triple mode.');
+        }
+        await new Promise(resolve => {
+            const check = () => {
+                if (w.document && w.document.body) {
+                    resolve();
+                } else {
+                    setTimeout(check, 10);
+                }
+            };
+            check();
+        });
         w.document.body.style.margin = '0';
+        w.document.body.style.background = '#000';
         const r = new THREE.WebGPURenderer({antialias: true});
         r.setSize(w.innerWidth, w.innerHeight);
         w.document.body.appendChild(r.domElement);
         await r.init();
         return r;
     }
+
 
     async function initParticles() {
         const attractorsPositions = uniformArray([new THREE.Vector3(-1, 0, 0), new THREE.Vector3(1, 0, -0.7), new THREE.Vector3(0, 0.5, 1)]);
