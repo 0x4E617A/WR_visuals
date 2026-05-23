@@ -69,7 +69,8 @@
     const CAMERA_FOV = 75;
     const SIDE_CAMERA_ANGLE = Math.PI / 3;
     const RIG_POSITION = [0.0, 0.5, 1.0];
-    let scene, renderer, controls, updateCompute, vehicleRig, frontCamera, leftCamera, rightCamera;
+    let scene, renderer, controls, updateCompute, vehicleRig;
+    let orbitCamera, frontCamera, leftCamera, rightCamera;
 
     const hud = document.getElementById('hud');
     const INNER_DIM = 0.3;
@@ -85,32 +86,59 @@
         await initRig();
         await initParticles();
         window.addEventListener('resize', onResize);
-        animate();
+        renderer.setAnimationLoop(animate);
+        // animate();
     }
 
     async function initRig() {
+        /* orbitCamera controlled by OrbitControls */
+        /* vehicleRig recieves rotation from orbitCamera */
+        /* front/left/right cameras are children of vehicleRig */
         vehicleRig = new THREE.Group();
         scene.add(vehicleRig);
         const aspect = window.innerWidth / window.innerHeight;
+
+        // external orbit camera
+        orbitCamera = new THREE.PerspectiveCamera(CAMERA_FOV, aspect, 0.01, 200);
+        orbitCamera.position.set(0, 2, 6);
+
+        // cockpit cameras
         frontCamera = new THREE.PerspectiveCamera(CAMERA_FOV, aspect, .01, 200);
         leftCamera = new THREE.PerspectiveCamera(CAMERA_FOV, aspect, .01, 200);
         rightCamera = new THREE.PerspectiveCamera(CAMERA_FOV, aspect, .01, 200);
-        frontCamera.position.set(RIG_POSITION[0], RIG_POSITION[1], RIG_POSITION[2]);
-        leftCamera.position.set(RIG_POSITION[0], RIG_POSITION[1], RIG_POSITION[2]);
-        rightCamera.position.set(RIG_POSITION[0], RIG_POSITION[1], RIG_POSITION[2]);
+
+        frontCamera.position.set(
+            RIG_POSITION[0],
+            RIG_POSITION[1],
+            RIG_POSITION[2]
+        );
+        leftCamera.position.copy(frontCamera.position);
+        rightCamera.position.copy(frontCamera.position);
+
         frontCamera.rotation.y = 0;
         leftCamera.rotation.y = SIDE_CAMERA_ANGLE;
         rightCamera.rotation.y = -SIDE_CAMERA_ANGLE;
-        vehicleRig.add(frontCamera, leftCamera, rightCamera);
-        controls = new OrbitControls(frontCamera, renderer.domElement);
+
+        vehicleRig.add(frontCamera);
+        vehicleRig.add(leftCamera);
+        vehicleRig.add(rightCamera);
+
+        // orbit controls use external camera
+        controls = new OrbitControls(
+            orbitCamera,
+            renderer.domElement
+        );
+
         controls.enableDamping = true;
+        controls.target.set(0, 0, 0);
+
     }
 
     async function initRendererMode() {
         renderer = new THREE.WebGPURenderer({antialias: true});
         renderer.setPixelRatio(devicePixelRatio);
         renderer.setSize(innerWidth, innerHeight);
-        renderer.setAnimationLoop(animate);
+        // renderer.setAnimationLoop(animate);
         renderer.setClearColor('#000000');
         renderer.inspector = new Inspector();
         document.body.appendChild(renderer.domElement);
@@ -331,8 +359,20 @@
     }
 
     function animate() {
-        controls.update();
-        renderer.compute(updateCompute);
+        if (controls) {
+            controls.update();
+        }
+
+        if (orbitCamera && vehicleRig) {
+            vehicleRig.quaternion.copy(
+                orbitCamera.quaternion
+            );
+        }
+
+        if (renderer && updateCompute) {
+            renderer.compute(updateCompute);
+        }
+
         renderSingle();
     }
 
