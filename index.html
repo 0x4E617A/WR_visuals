@@ -68,7 +68,8 @@
 
     const CAMERA_FOV = 75;
     const SIDE_CAMERA_ANGLE = Math.PI / 3;
-    let scene, renderer, controls, updateCompute, vehicleRig, frontCamera, leftCamera, rightCamera, debugCamera;
+    const RIG_POSITION = [0.0, 0.5, 1.0];
+    let scene, renderer, controls, updateCompute, vehicleRig, frontCamera, leftCamera, rightCamera;
 
     const hud = document.getElementById('hud');
     const INNER_DIM = 0.3;
@@ -80,30 +81,28 @@
         const dl = new THREE.DirectionalLight('#ffffff', 1.5);
         dl.position.set(4, 2, 0);
         scene.add(dl);
-        initRig();
         await initRendererMode();
+        await initRig();
         await initParticles();
         window.addEventListener('resize', onResize);
         animate();
     }
 
-    function initRig() {
+    async function initRig() {
         vehicleRig = new THREE.Group();
         scene.add(vehicleRig);
         const aspect = window.innerWidth / window.innerHeight;
         frontCamera = new THREE.PerspectiveCamera(CAMERA_FOV, aspect, .01, 200);
         leftCamera = new THREE.PerspectiveCamera(CAMERA_FOV, aspect, .01, 200);
         rightCamera = new THREE.PerspectiveCamera(CAMERA_FOV, aspect, .01, 200);
-        frontCamera.position.set(0, 0, 0);
-        leftCamera.position.set(0, 0, 0);
-        rightCamera.position.set(0, 0, 0);
+        frontCamera.position.set(RIG_POSITION[0], RIG_POSITION[1], RIG_POSITION[2]);
+        leftCamera.position.set(RIG_POSITION[0], RIG_POSITION[1], RIG_POSITION[2]);
+        rightCamera.position.set(RIG_POSITION[0], RIG_POSITION[1], RIG_POSITION[2]);
         frontCamera.rotation.y = 0;
         leftCamera.rotation.y = SIDE_CAMERA_ANGLE;
         rightCamera.rotation.y = -SIDE_CAMERA_ANGLE;
         vehicleRig.add(frontCamera, leftCamera, rightCamera);
-        debugCamera = new THREE.PerspectiveCamera(25, aspect, .1, 100);
-        debugCamera.position.set(3, 4, 5);
-        controls = new OrbitControls(debugCamera, document.body);
+        controls = new OrbitControls(frontCamera, renderer.domElement);
         controls.enableDamping = true;
     }
 
@@ -116,13 +115,44 @@
         renderer.inspector = new Inspector();
         document.body.appendChild(renderer.domElement);
         await renderer.init();
-        hud.textContent = 'MODE: SINGLE / 3 VIEWPORTS';
+        hud.textContent = 'MODE: static vehicle / 1S3V';
     }
 
     async function initParticles() {
-        const attractorsPositions = uniformArray([new THREE.Vector3(-1, 0, 0), new THREE.Vector3(1, 0, -0.7), new THREE.Vector3(0, 0.5, 1)]);
-        const attractorsRotationAxes = uniformArray([new THREE.Vector3(0.2, 1, 0), new THREE.Vector3(0, 1, -0.2), new THREE.Vector3(0.6, 0, -0.75).normalize()]);
+
+        // ---------
+        // attractors
+
+        const attractorsPositions = uniformArray([
+            new THREE.Vector3(-1, 0, 0),
+            new THREE.Vector3(1, 0, -0.7),
+            new THREE.Vector3(0, 0.5, 1)
+        ]);
+        const attractorsRotationAxes = uniformArray([
+            new THREE.Vector3(0.2, 1, 0),
+            new THREE.Vector3(0, 1, -0.2),
+            new THREE.Vector3(0.6, 0, -0.75).normalize()
+        ]);
         const attractorsLength = uniform(attractorsPositions.array.length, 'uint');
+        const helpersRing = new THREE.RingGeometry(1, 1.02, 32, 1, 0, Math.PI * 1.5);
+        const helpersArrow = new THREE.ConeGeometry(0.05, 0.2, 6, 1, false);
+        const helpersMaterial = new THREE.MeshBasicMaterial( {side: THREE.DoubleSide, transparent: true, opacity: 0.2} );
+
+        // // alternate option for moving vehicle
+        // window.addEventListener('keydown', function (event) {
+        //     switch (event.key) {
+        //         case 'g':
+        //             transformControls.setMode('translate')
+        //             break
+        //         case 'r':
+        //             transformControls.setMode('rotate')
+        //             break
+        //         case 's':
+        //             transformControls.setMode('scale')
+        //             break
+        //     }
+        // })
+
         const attractors = [];
         for (let i = 0; i < attractorsPositions.array.length; i++) {
             const a = {};
@@ -130,18 +160,44 @@
             a.orientation = attractorsRotationAxes.array[i];
             a.reference = new THREE.Object3D();
             a.reference.position.copy(a.position);
+            a.reference.quaternion.setFromUnitVectors(new THREE.Vector3(0, 1, 0), a.orientation);
             scene.add(a.reference);
-            a.controls = new TransformControls(debugCamera, document.body);
+
+            a.helper = new THREE.Group();
+            a.helper.scale.setScalar(0.325);
+            a.reference.add(a.helper);
+
+            a.ring = new THREE.Mesh(helpersRing, helpersMaterial);
+            a.ring.rotation.x = -Math.PI * 0.5;
+            a.helper.add(a.ring);
+
+            a.arrow = new THREE.Mesh(helpersArrow, helpersMaterial);
+            a.arrow.position.x = 1;
+            a.arrow.position.z = 0.2;
+            a.arrow.rotation.x = Math.PI * 0.5;
+            a.helper.add(a.arrow);
+
+            a.controls = new TransformControls(frontCamera, renderer.domElement);
             a.controls.mode = 'rotate';
             a.controls.size = .5;
             a.controls.attach(a.reference);
             scene.add(a.controls.getHelper());
+
+            a.controls.addEventListener('dragging-changed', (event) => {
+                controls.enabled = ! event.value;
+            });
+
             a.controls.addEventListener('change', () => {
                 a.position.copy(a.reference.position);
                 a.orientation.copy(new THREE.Vector3(0, 1, 0).applyQuaternion(a.reference.quaternion));
             });
+
             attractors.push(a);
         }
+
+        // ---------
+        // particles
+
         const count = Math.pow(2, 15);
         const material = new THREE.SpriteNodeMaterial({blending: THREE.AdditiveBlending, depthWrite: false});
         const attractorMass = uniform(Number('1e7'));
@@ -170,6 +226,9 @@
             p.assign(vec3(hash(instanceIndex), hash(instanceIndex.add(uint(7))), hash(instanceIndex.add(uint(13)))).sub(.5).mul(vec3(5, .2, 5)));
             v.assign(sphericalToVec3(hash(instanceIndex).mul(PI).mul(2), hash(instanceIndex.add(uint(3))).mul(PI)).mul(.05));
         });
+
+        // ---------
+        // init compute
 
         const initCompute = initFn().compute(count);
         (renderer || rendererFront).compute(initCompute);
@@ -224,16 +283,19 @@
 
         material.scaleNode = particleMassMultiplier.mul(scale);
         scene.add(new THREE.InstancedMesh(new THREE.PlaneGeometry(1, 1), material, count));
-        const box = new THREE.Mesh(new THREE.BoxGeometry(INNER_DIM * 2, INNER_DIM * 2, INNER_DIM * 2), new THREE.MeshBasicMaterial({
-            color: 0x00ffff,
-            wireframe: false,
-            transparent: true,
-            opacity: 0.0
+        const box = new THREE.Mesh(
+            new THREE.BoxGeometry(INNER_DIM * 2, INNER_DIM * 2, INNER_DIM * 2),
+            new THREE.MeshBasicMaterial({
+                color: 0x00ffff,
+                wireframe: false,
+                transparent: true,
+                opacity: 0.0
         }));
         vehicleRig.add(box);
 
         if (renderer && renderer.inspector) {
             const gui = renderer.inspector.createParameters('Parameters');
+
             gui.add({attractorMassExponent: attractorMass.value.toString().length - 1}, 'attractorMassExponent', 1, 10, 1).onChange(value => attractorMass.value = Number(`1e${value}`));
             gui.add({particleGlobalMassExponent: particleGlobalMass.value.toString().length - 1}, 'particleGlobalMassExponent', 1, 10, 1).onChange(value => particleGlobalMass.value = Number(`1e${value}`));
             gui.add(maxSpeed, 'value', 0, 10, .01).name('maxSpeed');
@@ -241,8 +303,30 @@
             gui.add(spinningStrength, 'value', 0, 10, .01).name('spinningStrength');
             gui.add(scale, 'value', 0, .1, .001).name('scale');
             gui.add(boundHalfExtent, 'value', 0, 20, .01).name('boundHalfExtent');
+
             gui.addColor({color: colorA.value.getHexString(THREE.SRGBColorSpace)}, 'color').name('colorA').onChange(value => colorA.value.set(value));
             gui.addColor({color: colorB.value.getHexString(THREE.SRGBColorSpace)}, 'color').name('colorB').onChange(value => colorB.value.set(value));
+
+            gui.add({controlsMode: attractors[0].controls.mode}, 'controlsMode', ['translate', 'rotate', 'none']).onChange(value => {
+                for (const a of attractors) {
+                    if (value === 'none') {
+                        a.controls.visible = false;
+                        a.controls.enabled = false;
+                        a.helper.visible = false;
+                        a.controls.showX = false;
+                        a.controls.showY = false;
+                        a.controls.showZ = false;
+                    } else {
+                        a.controls.visible = true;
+                        a.controls.enabled = true;
+                        a.helper.visible = true;
+                        a.controls.showX = true;
+                        a.controls.showY = true;
+                        a.controls.showZ = true;
+                        a.controls.mode = value;
+                    }
+                }
+            });
         }
     }
 
@@ -278,7 +362,7 @@
 
     function onResize() {
         if (renderer) renderer.setSize(innerWidth, innerHeight);
-        for (const c of [frontCamera, leftCamera, rightCamera, debugCamera]) {
+        for (const c of [frontCamera, leftCamera, rightCamera]) {
             c.aspect = innerWidth / innerHeight;
             c.updateProjectionMatrix();
         }
