@@ -63,17 +63,29 @@
         vec4
     } from 'three/tsl';
     import {Inspector} from 'three/addons/inspector/Inspector.js';
-    import {OrbitControls} from 'three/addons/controls/OrbitControls.js';
     import {TransformControls} from 'three/addons/controls/TransformControls.js';
 
     const CAMERA_FOV = 75;
     const SIDE_CAMERA_ANGLE = Math.PI / 3;
     const RIG_POSITION = [0.0, 0.5, 1.0];
-    let scene, renderer, controls, updateCompute, vehicleRig;
-    let orbitCamera, frontCamera, leftCamera, rightCamera;
+    let scene, renderer, updateCompute, vehicleRig;
+    let frontCamera, leftCamera, rightCamera;
 
     const hud = document.getElementById('hud');
     const INNER_DIM = 0.3;
+
+    // init vehicle controls
+    const keys = {};
+    let attractorEditMode = false;
+
+    let yaw = 0;
+    let pitch = 0;
+
+    const moveSpeed = 0.05;
+    const mouseSensitivity = 0.002;
+
+    const attractors = [];
+
     init();
 
     async function init() {
@@ -84,28 +96,91 @@
         scene.add(dl);
         await initRendererMode();
         await initRig();
+        initInput();
         await initParticles();
         window.addEventListener('resize', onResize);
         renderer.setAnimationLoop(animate);
         // animate();
     }
 
+    function initInput() {
+        window.addEventListener('keydown', e => {
+            keys[e.code] = true;
+            if (
+                e.code === 'ShiftLeft' ||
+                e.code === 'ShiftRight'
+            ) {
+                attractorEditMode = true;
+                updateControlMode();
+            }
+        });
+        window.addEventListener('keyup', e => {
+            keys[e.code] = false;
+            if (
+                e.code === 'ShiftLeft' ||
+                e.code === 'ShiftRight'
+            ) {
+                attractorEditMode = false;
+                updateControlMode();
+            }
+        });
+        renderer.domElement.addEventListener('click', () => {
+            if (!attractorEditMode)
+                renderer.domElement.requestPointerLock();
+        });
+        document.addEventListener('mousemove', e => {
+
+            if (attractorEditMode)
+                return;
+
+            if (
+                document.pointerLockElement !==
+                renderer.domElement
+            ) return;
+
+            yaw -= e.movementX * mouseSensitivity;
+            pitch -= e.movementY * mouseSensitivity;
+
+            pitch = THREE.MathUtils.clamp(
+                pitch,
+                -Math.PI * 0.49,
+                Math.PI * 0.49
+            );
+        });
+    }
+
     async function initRig() {
-        /* orbitCamera controlled by OrbitControls */
-        /* vehicleRig recieves rotation from orbitCamera */
-        /* front/left/right cameras are children of vehicleRig */
+
         vehicleRig = new THREE.Group();
         scene.add(vehicleRig);
-        const aspect = window.innerWidth / window.innerHeight;
 
-        // external orbit camera
-        orbitCamera = new THREE.PerspectiveCamera(CAMERA_FOV, aspect, 0.01, 200);
-        orbitCamera.position.set(0, 2, 6);
+        const aspect =
+            window.innerWidth /
+            window.innerHeight;
 
-        // cockpit cameras
-        frontCamera = new THREE.PerspectiveCamera(CAMERA_FOV, aspect, .01, 200);
-        leftCamera = new THREE.PerspectiveCamera(CAMERA_FOV, aspect, .01, 200);
-        rightCamera = new THREE.PerspectiveCamera(CAMERA_FOV, aspect, .01, 200);
+        frontCamera =
+            new THREE.PerspectiveCamera(
+                CAMERA_FOV,
+                aspect,
+                0.01,
+                200
+            );
+
+        leftCamera =
+            new THREE.PerspectiveCamera(
+                CAMERA_FOV,
+                aspect,
+                0.01,
+                200
+            );
+
+        rightCamera =
+            new THREE.PerspectiveCamera(
+                CAMERA_FOV,
+                aspect,
+                0.01,
+                200
+            );
 
         frontCamera.position.set(
             RIG_POSITION[0],
@@ -123,15 +198,7 @@
         vehicleRig.add(leftCamera);
         vehicleRig.add(rightCamera);
 
-        // orbit controls use external camera
-        controls = new OrbitControls(
-            orbitCamera,
-            renderer.domElement
-        );
-
-        controls.enableDamping = true;
-        controls.target.set(0, 0, 0);
-
+        vehicleRig.position.set(0,0,0);
     }
 
     async function initRendererMode() {
@@ -166,22 +233,7 @@
         const helpersArrow = new THREE.ConeGeometry(0.05, 0.2, 6, 1, false);
         const helpersMaterial = new THREE.MeshBasicMaterial( {side: THREE.DoubleSide, transparent: true, opacity: 0.2} );
 
-        // // alternate option for moving vehicle
-        // window.addEventListener('keydown', function (event) {
-        //     switch (event.key) {
-        //         case 'g':
-        //             transformControls.setMode('translate')
-        //             break
-        //         case 'r':
-        //             transformControls.setMode('rotate')
-        //             break
-        //         case 's':
-        //             transformControls.setMode('scale')
-        //             break
-        //     }
-        // })
-
-        const attractors = [];
+        attractors.length = 0;
         for (let i = 0; i < attractorsPositions.array.length; i++) {
             const a = {};
             a.position = attractorsPositions.array[i];
@@ -210,10 +262,6 @@
             a.controls.size = .5;
             a.controls.attach(a.reference);
             scene.add(a.controls.getHelper());
-
-            a.controls.addEventListener('dragging-changed', (event) => {
-                controls.enabled = ! event.value;
-            });
 
             a.controls.addEventListener('change', () => {
                 a.position.copy(a.reference.position);
@@ -358,21 +406,57 @@
         }
     }
 
+    function updateControlMode() {
+        for (const a of attractors) {
+            const enabled =
+                attractorEditMode;
+
+            a.controls.enabled = enabled;
+            a.controls.visible = enabled;
+
+            a.helper.visible = enabled;
+
+            a.controls.showX = enabled;
+            a.controls.showY = enabled;
+            a.controls.showZ = enabled;
+        }
+        hud.textContent =
+            attractorEditMode
+                ? 'MODE: ATTRACTOR EDIT'
+                : 'MODE: VEHICLE';
+    }
+
+    function updateVehicleRig() {
+        if (attractorEditMode)
+            return;
+        vehicleRig.rotation.order =
+            'YXZ';
+
+        vehicleRig.rotation.y = yaw;
+        vehicleRig.rotation.x = pitch;
+
+        if (keys['KeyW'])
+            vehicleRig.translateZ(-moveSpeed);
+        if (keys['KeyS'])
+            vehicleRig.translateZ(moveSpeed);
+        if (keys['KeyA'])
+            vehicleRig.translateX(-moveSpeed);
+        if (keys['KeyD'])
+            vehicleRig.translateX(moveSpeed);
+        if (keys['Space'])
+            vehicleRig.translateY(moveSpeed);
+        if (
+            keys['ControlLeft'] ||
+            keys['ControlRight']
+        )
+            vehicleRig.translateY(-moveSpeed);
+    }
+
     function animate() {
-        if (controls) {
-            controls.update();
+        updateVehicleRig();
+        if ( renderer && updateCompute ) {
+            renderer.compute( updateCompute );
         }
-
-        if (orbitCamera && vehicleRig) {
-            vehicleRig.quaternion.copy(
-                orbitCamera.quaternion
-            );
-        }
-
-        if (renderer && updateCompute) {
-            renderer.compute(updateCompute);
-        }
-
         renderSingle();
     }
 
